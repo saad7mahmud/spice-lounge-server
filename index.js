@@ -106,15 +106,11 @@ app.get("/orders/:email", (req, res) => {
       return res.status(500).send("Internal Server Error");
     }
 
-    if (results.length === 0) {
-      // No orders found for the provided email
-      return res.status(404).send("Orders not found");
-    }
-
-    // Orders found, send the orders information in the response
-    res.json(results);
+    // Always respond with a 200 status code
+    res.status(200).json(results);
   });
 });
+
 // Route to get all orders information by admin
 app.get("/orders", (req, res) => {
   const query = "SELECT * FROM orders";
@@ -145,14 +141,7 @@ app.get("/orders/manager/:email", (req, res) => {
       console.error("Error executing query:", err);
       return res.status(500).send("Internal Server Error");
     }
-
-    if (results.length === 0) {
-      // No orders found for the provided email
-      return res.status(404).send("Orders not found");
-    }
-
-    // Orders found, send the orders information in the response
-    res.json(results);
+    res.status(200).json(results);
   });
 });
 // Route to get orders information by Cashier email from the database
@@ -297,6 +286,20 @@ app.get("/users/cashier/:email", verifyToken, (req, res) => {
     res.send({ cashier });
   });
 });
+// Check Employee
+app.get("/employee", (req, res) => {
+  const sql = "SELECT * FROM users WHERE userRole != 'customer'";
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("Error executing query:", err);
+      res.status(500).send("Internal Server Error");
+      return;
+    }
+
+    res.json(results);
+  });
+});
 
 // Make Admin
 
@@ -359,6 +362,31 @@ app.patch("/users/cashier/:id", (req, res) => {
     }
 
     res.send(result);
+  });
+});
+// Change Salary
+app.put("/salary/:id", (req, res) => {
+  const id = req.params.id;
+  console.log("test", req.body);
+  const updatedSalary = req.body;
+
+  const sql = `
+    UPDATE users
+    SET
+      salary = ?
+    WHERE userID = ?
+  `;
+
+  const values = [updatedSalary.salary, id];
+
+  // Execute the SQL query using db.query
+  db.query(sql, values, (error, result) => {
+    if (error) {
+      console.error("Error updating salary:", error);
+      res.status(500).send("Internal Server Error");
+    } else {
+      res.send(result);
+    }
   });
 });
 
@@ -426,7 +454,7 @@ app.delete("/users/:id", (req, res) => {
 // Endpoint to delete a order
 app.delete("/orders/:id", (req, res) => {
   const id = req.params.id; // Assuming the ID is passed in the URL
-  const query = "DELETE FROM orders WHERE foodID = ?";
+  const query = "DELETE FROM orders WHERE id = ?";
 
   db.query(query, [id], (err, result) => {
     if (err) {
@@ -439,6 +467,48 @@ app.delete("/orders/:id", (req, res) => {
     res.status(200).send("Order cancelled successfully");
   });
 });
+
+// Update Foods
+app.put("/foods/:id", (req, res) => {
+  const id = req.params.id;
+  console.log("Request params:", req.params);
+
+  console.log("check id", id);
+  const updateFoodInfo = req.body;
+  console.log("Body", updateFoodInfo);
+
+  // Use a template string to create the SQL query
+  const sql = `
+    UPDATE foods
+    SET
+      foodTitle = ?,
+      foodDescription = ?,
+      foodImage = ?,
+      foodPrice = ?,
+      foodCategory = ?
+    WHERE foodID = ?
+  `;
+
+  const values = [
+    updateFoodInfo.foodTitle,
+    updateFoodInfo.foodDescription,
+    updateFoodInfo.foodImage,
+    updateFoodInfo.foodPrice,
+    updateFoodInfo.foodCategory,
+    id,
+  ];
+
+  // Execute the SQL query using db.query
+  db.query(sql, values, (error, result) => {
+    if (error) {
+      console.error("Error updating food:", error);
+      res.status(500).send("Internal Server Error");
+    } else {
+      res.send(result);
+    }
+  });
+});
+
 // Endpoint to Food a order
 app.delete("/foods/:id", (req, res) => {
   const id = req.params.id; // Assuming the ID is passed in the URL
@@ -528,41 +598,19 @@ app.post("/foods", (req, res) => {
 app.post("/orders", (req, res) => {
   const orderInfo = req.body;
 
-  // Check if the customer already has a pending order for the same food
-  const checkQuery =
-    "SELECT * FROM orders WHERE customerEmail = ? AND foodID = ? AND deliveryStatus = 'pending'";
+  // Insert the order into the database
+  const insertQuery = "INSERT INTO orders SET ?";
 
-  db.query(
-    checkQuery,
-    [orderInfo.customerEmail, orderInfo.foodID],
-    (checkErr, checkResult) => {
-      if (checkErr) {
-        console.error("Error checking for existing orders: " + checkErr.stack);
-        res.status(500).send("Internal Server Error");
-        return;
-      }
-
-      if (checkResult.length > 0) {
-        // Customer already has a pending order for the same food
-        res.status(409).send("You already have a pending order for this food.");
-        console.log("You already have a pending order for this food.");
-      } else {
-        // Insert the order into the database
-        const insertQuery = "INSERT INTO orders SET ?";
-
-        db.query(insertQuery, orderInfo, (insertErr, result) => {
-          if (insertErr) {
-            console.error("Error inserting order data: " + insertErr.stack);
-            res.status(500).send("Internal Server Error");
-            return;
-          }
-
-          console.log("Order data inserted successfully");
-          res.status(200).send("Order data inserted successfully");
-        });
-      }
+  db.query(insertQuery, orderInfo, (insertErr, result) => {
+    if (insertErr) {
+      console.error("Error inserting order data: " + insertErr.stack);
+      res.status(500).send("Internal Server Error");
+      return;
     }
-  );
+
+    console.log("Order data inserted successfully");
+    res.status(200).send("Order data inserted successfully");
+  });
 });
 
 // Create a simple route
